@@ -2,9 +2,9 @@ package main
 
 import (
     "bytes"
-    "encoding/json"
     "fmt"
     "github.com/tarm/serial"
+    "gopkg.in/yaml.v2"
     "io/ioutil"
     "log"
     "os"
@@ -43,18 +43,18 @@ type FanController struct {
 
 // Config for GridFan
 type Config struct {
-    DevicePath     string      `json:"serial_device_path"`
-    ConstantRPM    map[int]int `json:"constant_rpm"`
+    DevicePath     string      `yaml:"serial_device_path"`
+    ConstantRPM    map[int]int `yaml:"constant_rpm"`
     DiskControlled struct {
-        Fans              []int    `json:"fans"`
-        TargetTemperature int      `json:"target_temp"`
-        SleepingTimeout   int      `json:"sleeping_timeout"`
-        Disks             []string `json:"disks"`
+        Fans              []int    `yaml:"fans"`
+        TargetTemperature int      `yaml:"target_temp"`
+        SleepingTimeout   int      `yaml:"sleeping_timeout"`
+        Disks             []string `yaml:"disks"`
         RPM               struct {
-            Sleeping int `json:"sleeping"`
-            Standby  int `json:"standby"`
-        } `json:"rpm"`
-    } `json:"disk_controlled"`
+            Sleeping int `yaml:"sleeping"`
+            Standby  int `yaml:"standby"`
+        } `yaml:"rpm"`
+    } `yaml:"disk_controlled"`
 }
 
 func min(a int, b int) int {
@@ -347,7 +347,7 @@ func isValidRPM(rpm int) bool {
     return rpm == 0 || (rpm >= MinFanRPM && rpm <= MaxFanRPM)
 }
 
-// Read JSON config file
+// Read yaml config file
 func readConfig(path string) (Config, error) {
     config := Config{}
 
@@ -357,8 +357,8 @@ func readConfig(path string) (Config, error) {
         return config, err
     }
 
-    // JSON decode
-    err = json.Unmarshal(configContents, &config)
+    // yaml decode
+    err = yaml.Unmarshal(configContents, &config)
     if err != nil {
         return config, err
     }
@@ -598,9 +598,9 @@ func mainWrapper() (ret int) {
         (len(os.Args) == 4 && os.Args[2] == "get") ||
         (len(os.Args) == 5 && os.Args[2] == "set")) {
         fmt.Fprintf(os.Stderr, "Usage: %v\n", os.Args[0])
-        fmt.Fprintf(os.Stderr, "  JSON_CONFIG_FILE daemon\n")
-        fmt.Fprintf(os.Stderr, "  JSON_CONFIG_FILE get all|1|2|3|4|5|6\n")
-        fmt.Fprintf(os.Stderr, "  JSON_CONFIG_FILE set all|1|2|3|4|5|6 0|20|21|...|100\n")
+        fmt.Fprintf(os.Stderr, "  YAML_CONFIG_FILE daemon\n")
+        fmt.Fprintf(os.Stderr, "  YAML_CONFIG_FILE get all|1|2|3|4|5|6\n")
+        fmt.Fprintf(os.Stderr, "  YAML_CONFIG_FILE set all|1|2|3|4|5|6 0|20|21|...|100\n")
         return
     }
 
