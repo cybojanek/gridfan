@@ -96,40 +96,45 @@ func (diskGroup DiskGroup) GetTemperature() (int, error) {
 		command := exec.Command("hddtemp", disk)
 
 		// Save stdout and stderr
-		var stdout, stderr bytes.Buffer
-		command.Stdout = &stdout
-		command.Stderr = &stderr
+		var stdoutBuffer, stderrBuffer bytes.Buffer
+		command.Stdout = &stdoutBuffer
+		command.Stderr = &stderrBuffer
 
-		if err := command.Run(); err != nil {
+		err := command.Run()
+		stdout := stdoutBuffer.String()
+		stderr := stderrBuffer.String()
+
+		if err != nil {
 			log.Printf("ERROR hddtemp failed for disk [%v]: stdout:[%v] stderr:[%v] err: %v",
-				disk, stdout.String(), stderr.String(), err)
+				disk, stdout, stderr, err)
 			return maxTemperature, err
-		}
-		stringOutput := stdout.String()
-
-		// Split into lines
-		lines := strings.Split(strings.TrimSpace(stringOutput), "\n")
-		if len(lines) != 1 {
-			return maxTemperature, fmt.Errorf(
-				"GetTemperature: output is not one line: %v", stringOutput)
 		}
 
 		// Check for error, since hddtemp returns exit cide 0
-		if strings.Contains(lines[0], "No such file or directory") {
+		if strings.Contains(stderr, "No such file or directory") {
 			return maxTemperature, fmt.Errorf(
 				"GetTemperature: Disk [%v] not found", disk)
 		}
 
 		// Check if drive is asleep
-		if strings.Contains(lines[0], "drive is sleeping") {
-			return 0, nil
+		if strings.Contains(stderr, "drive is sleeping") {
+			continue
+		}
+
+		// Split into lines
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 1 {
+			return maxTemperature, fmt.Errorf(
+				"GetTemperature: Disk [%v] output is not one line: %v", disk,
+				stdout)
 		}
 
 		// Get temperature
 		fields := strings.Split(lines[0], ":")
 		if len(fields) != 3 {
 			return maxTemperature, fmt.Errorf(
-				"GetTemperature: output is not three fields: %v", lines[0])
+				"GetTemperature: Disk [%v] output is not three fields: %v",
+				disk, lines[0])
 		}
 
 		field := strings.TrimSpace(fields[2])
@@ -143,7 +148,9 @@ func (diskGroup DiskGroup) GetTemperature() (int, error) {
 
 		temperature, err := strconv.Atoi(tempStr)
 		if err != nil {
-			return maxTemperature, err
+			return maxTemperature, fmt.Errorf(
+				"GetTemperature: Disk [%v] output temperature error: [%v] %v",
+				disk, stdout, err)
 		}
 		maxTemperature = max(temperature, maxTemperature)
 	}
