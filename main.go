@@ -19,7 +19,7 @@ limitations under the License.
 import (
 	"bytes"
 	"fmt"
-	"github.com/tarm/serial"
+	"github.com/cybojanek/gridfan/controller"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -28,14 +28,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-)
-
-// Controller minimums and maximums
-const (
-	MinFanIndex = 1
-	MaxFanIndex = 6
-	MinFanRPM   = 20
-	MaxFanRPM   = 100
 )
 
 // Disk status
@@ -48,13 +40,6 @@ const (
 // DiskGroup of disks
 type DiskGroup struct {
 	Disks []string
-}
-
-// FanController for GridFan
-type FanController struct {
-	DevicePath string
-
-	serial *serial.Port
 }
 
 // Config for GridFan
@@ -203,176 +188,10 @@ func (diskGroup DiskGroup) GetStatus() (int, error) {
 	return status, nil
 }
 
-// Write all bytes to the serial device
-func (controller *FanController) writeFully(b []byte) error {
-	written := 0
-	for written < len(b) {
-		n, err := controller.serial.Write(b[written:])
-		if err != nil {
-			return err
-		}
-		written += n
-	}
-	return nil
-}
-
-// Read until array is full
-func (controller *FanController) readFully(b []byte) error {
-	read := 0
-	for read < len(b) {
-		n, err := controller.serial.Read(b[read:])
-		if err != nil {
-			return err
-		}
-		read += n
-	}
-	return nil
-}
-
-// Open controller
-func (controller *FanController) Open() error {
-	if controller.serial != nil {
-		return nil
-	}
-
-	c := &serial.Config{Name: controller.DevicePath, Baud: 4800}
-	s, err := serial.OpenPort(c)
-	if err != nil {
-		return err
-	}
-	controller.serial = s
-
-	controller.serial.Flush()
-
-	// Check controller
-	if err := controller.Ping(); err != nil {
-		// Close, we already have an error...so ignore Close error
-		controller.Close()
-		return fmt.Errorf("Open: Failed to ping controller: %v", err)
-	}
-
-	return nil
-}
-
-// Close controller
-func (controller *FanController) Close() error {
-	if controller.serial == nil {
-		return nil
-	}
-
-	if err := controller.serial.Close(); err != nil {
-		return err
-	}
-
-	controller.serial = nil
-
-	return nil
-}
-
-// Ping controller to check its alive
-func (controller *FanController) Ping() error {
-	if controller.serial == nil {
-		return fmt.Errorf("Ping: Controller is not open")
-	}
-
-	data := []byte{0xc0}
-	if err := controller.writeFully(data); err != nil {
-		return err
-	}
-
-	reply := make([]byte, 1)
-	if err := controller.readFully(reply); err != nil {
-		return err
-	}
-
-	if reply[0] != 0x21 {
-		return fmt.Errorf("Ping: Unexpected reply: %d", reply[0])
-	}
-
-	return nil
-}
-
-// GetSpeed of a fan
-func (controller *FanController) GetSpeed(fan int) (int, error) {
-	speed := 0
-	if controller.serial == nil {
-		return speed, fmt.Errorf("GetSpeed: Controller is not open")
-	}
-
-	if !isValidFan(fan) {
-		return speed, fmt.Errorf("GetSpeed: Bad fan number: %d", fan)
-	}
-
-	data := []byte{0x8a, byte(fan)}
-	if err := controller.writeFully(data); err != nil {
-		return speed, err
-	}
-
-	reply := make([]byte, 5)
-	if err := controller.readFully(reply); err != nil {
-		return speed, err
-	}
-
-	if !bytes.Equal(reply[0:3], []byte{0xc0, 0x00, 0x00}) {
-		return speed, fmt.Errorf("GetSpeed: Malformed reply: %v", reply)
-	}
-
-	speed = (int(reply[3]) << 8) | int(reply[4])
-
-	return speed, nil
-}
-
-// SetSpeed of a fan
-func (controller *FanController) SetSpeed(fan int, rpm int) error {
-	if controller.serial == nil {
-		return fmt.Errorf("SetSpeed: Controller is not open")
-	}
-
-	if !isValidFan(fan) {
-		return fmt.Errorf("SetSpeed: Bad fan number: %d", fan)
-	}
-
-	if !isValidRPM(rpm) {
-		return fmt.Errorf("SetSpeed: Bad fan rpm: %d", rpm)
-	}
-
-	byteA := byte(0)
-	byteB := byte(0)
-	if rpm != 0 {
-		byteA = 0x2 + (byte(rpm) / 10)
-		byteB = (byte(rpm) % 10) * 0x10
-	}
-	data := []byte{0x44, byte(fan), 0xc0, 0x00, 0x00, byteA, byteB}
-
-	if err := controller.writeFully(data); err != nil {
-		return err
-	}
-
-	reply := make([]byte, 1)
-	if err := controller.readFully(reply); err != nil {
-		return err
-	}
-
-	if reply[0] != 0x1 {
-		return fmt.Errorf("SetSpeed: Unexpected reply: %d", reply[0])
-	}
-
-	return nil
-}
-
-// Check if a fan number is valid
-func isValidFan(fan int) bool {
-	return fan >= MinFanIndex && fan <= MaxFanIndex
-}
-
-// Check if a fan RPM is valid
-func isValidRPM(rpm int) bool {
-	return rpm == 0 || (rpm >= MinFanRPM && rpm <= MaxFanRPM)
-}
-
 // Read yaml config file
 func readConfig(path string) (Config, error) {
 	config := Config{}
+	controller := controller.GridFanController{}
 
 	// Read config file
 	configContents, err := ioutil.ReadFile(os.Args[1])
@@ -393,10 +212,10 @@ func readConfig(path string) (Config, error) {
 
 	// Check ConstantRPM fans
 	for fan, rpm := range config.ConstantRPM {
-		if !isValidFan(fan) {
+		if !controller.IsValidFan(fan) {
 			return config, fmt.Errorf("readConfig: Invalid fan index: %d", fan)
 		}
-		if !isValidRPM(rpm) {
+		if !controller.IsValidRPM(rpm) {
 			return config, fmt.Errorf(
 				"readConfig: Invalid fan %d rpm: %d", fan, rpm)
 		}
@@ -404,7 +223,7 @@ func readConfig(path string) (Config, error) {
 
 	// Check DiskControlled.Fans
 	for _, fan := range config.DiskControlled.Fans {
-		if !isValidFan(fan) {
+		if !controller.IsValidFan(fan) {
 			return config, fmt.Errorf("readConfig: Invalid fan index: %d", fan)
 		}
 
@@ -417,12 +236,12 @@ func readConfig(path string) (Config, error) {
 	}
 
 	// Check Sleeping and Standby
-	if !isValidRPM(config.DiskControlled.RPM.Sleeping) {
+	if !controller.IsValidRPM(config.DiskControlled.RPM.Sleeping) {
 		return config, fmt.Errorf("readConfig: Invalid sleeping rpm: %d",
 			config.DiskControlled.RPM.Sleeping)
 	}
 
-	if !isValidRPM(config.DiskControlled.RPM.Standby) {
+	if !controller.IsValidRPM(config.DiskControlled.RPM.Standby) {
 		return config, fmt.Errorf("readConfig: Invalid standby rpm: %d",
 			config.DiskControlled.RPM.Standby)
 	}
@@ -482,7 +301,7 @@ func (pid *PID) Update(value float64) float64 {
 // Apply configuration and run indefinitely
 func monitorTemperature(config Config) {
 	diskGroup := DiskGroup{config.DiskControlled.Disks}
-	controller := FanController{DevicePath: config.DevicePath}
+	controller := controller.GridFanController{DevicePath: config.DevicePath}
 
 	constantSet := false
 
@@ -648,7 +467,7 @@ func mainWrapper() (ret int) {
 		if os.Args[3] != "all" {
 			fans = fans[0:0]
 			value, err := strconv.Atoi(os.Args[3])
-			if err != nil || !isValidFan(value) {
+			if err != nil {
 				fmt.Fprintf(os.Stderr, "Bad fan index: %v\n", os.Args[3])
 				return
 			}
@@ -659,7 +478,7 @@ func mainWrapper() (ret int) {
 		rpm := 0
 		if os.Args[2] == "set" {
 			value, err := strconv.Atoi(os.Args[4])
-			if err != nil || !isValidRPM(value) {
+			if err != nil {
 				fmt.Fprintf(os.Stderr, "Bad fan RPM: %v\n", os.Args[4])
 				return
 			}
@@ -667,7 +486,7 @@ func mainWrapper() (ret int) {
 		}
 
 		// Open controller
-		controller := FanController{DevicePath: config.DevicePath}
+		controller := controller.GridFanController{DevicePath: config.DevicePath}
 		if err := controller.Open(); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to open controller: %v\n", err)
 			return
