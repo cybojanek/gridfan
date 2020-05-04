@@ -17,30 +17,16 @@ limitations under the License.
 */
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/cybojanek/gridfan/controller"
+	"github.com/cybojanek/gridfan/disk"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"strconv"
-	"strings"
 	"time"
 )
-
-// Disk status
-const (
-	DiskStatusSleep = iota
-	DiskStatusStandby
-	DiskStatusActive
-)
-
-// DiskGroup of disks
-type DiskGroup struct {
-	Disks []string
-}
 
 // Config for GridFan
 type Config struct {
@@ -56,136 +42,6 @@ type Config struct {
 			Standby  int `yaml:"standby"`
 		} `yaml:"rpm"`
 	} `yaml:"disk_controlled"`
-}
-
-func min(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a int, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// GetTemperature maximum of all disks
-func (diskGroup DiskGroup) GetTemperature() (int, error) {
-	maxTemperature := 0
-	for _, disk := range diskGroup.Disks {
-
-		// Get command output
-		command := exec.Command("hddtemp", disk)
-
-		// Save stdout and stderr
-		var stdoutBuffer, stderrBuffer bytes.Buffer
-		command.Stdout = &stdoutBuffer
-		command.Stderr = &stderrBuffer
-
-		err := command.Run()
-		stdout := stdoutBuffer.String()
-		stderr := stderrBuffer.String()
-
-		if err != nil {
-			log.Printf("ERROR hddtemp failed for disk [%v]: stdout:[%v] stderr:[%v] err: %v",
-				disk, stdout, stderr, err)
-			return maxTemperature, err
-		}
-
-		// Check for error, since hddtemp returns exit cide 0
-		if strings.Contains(stderr, "No such file or directory") {
-			return maxTemperature, fmt.Errorf(
-				"GetTemperature: Disk [%v] not found", disk)
-		}
-
-		// Check if drive is asleep
-		if strings.Contains(stderr, "drive is sleeping") {
-			continue
-		}
-
-		// Split into lines
-		lines := strings.Split(strings.TrimSpace(stdout), "\n")
-		if len(lines) != 1 {
-			return maxTemperature, fmt.Errorf(
-				"GetTemperature: Disk [%v] output is not one line: %v", disk,
-				stdout)
-		}
-
-		// Get temperature
-		fields := strings.Split(lines[0], ":")
-		if len(fields) != 3 {
-			return maxTemperature, fmt.Errorf(
-				"GetTemperature: Disk [%v] output is not three fields: %v",
-				disk, lines[0])
-		}
-
-		field := strings.TrimSpace(fields[2])
-		tempStr := field[0:0]
-		for i, c := range field {
-			if c < '0' || c > '9' {
-				break
-			}
-			tempStr = field[0 : i+1]
-		}
-
-		temperature, err := strconv.Atoi(tempStr)
-		if err != nil {
-			return maxTemperature, fmt.Errorf(
-				"GetTemperature: Disk [%v] output temperature error: [%v] %v",
-				disk, stdout, err)
-		}
-		maxTemperature = max(temperature, maxTemperature)
-	}
-	return maxTemperature, nil
-}
-
-// GetStatus of highest activity disk
-func (diskGroup DiskGroup) GetStatus() (int, error) {
-	status := DiskStatusSleep
-	for _, disk := range diskGroup.Disks {
-		// Get command output
-		command := exec.Command("hdparm", "-C", disk)
-
-		// Save stdout and stderr
-		var stdout, stderr bytes.Buffer
-		command.Stdout = &stdout
-		command.Stderr = &stderr
-
-		if err := command.Run(); err != nil {
-			log.Printf("ERROR hdparm failed for disk [%v]: stdout:[%v] stderr:[%v] err: %v",
-				disk, stdout.String(), stderr.String(), err)
-			return status, err
-		}
-		stringOutput := stdout.String()
-
-		// Split into lines
-		lines := strings.Split(strings.TrimSpace(stringOutput), "\n")
-		if len(lines) != 2 {
-			return status, fmt.Errorf(
-				"GetStatus: output is not two lines: %v", stringOutput)
-		}
-
-		// NOTE: our notion of standby differs from what hdparm reports...
-		statusLine := lines[1]
-		switch {
-		case strings.Contains(statusLine, "standby"):
-			status = max(status, DiskStatusSleep)
-
-		case strings.Contains(statusLine, "unknown"):
-			status = max(status, DiskStatusStandby)
-
-		case strings.Contains(statusLine, "active/idle"):
-			status = max(status, DiskStatusActive)
-
-		default:
-			return status, fmt.Errorf(
-				"GetStatus: bad status line: [%s]", statusLine)
-		}
-	}
-	return status, nil
 }
 
 // Read yaml config file
@@ -300,7 +156,10 @@ func (pid *PID) Update(value float64) float64 {
 
 // Apply configuration and run indefinitely
 func monitorTemperature(config Config) {
-	diskGroup := DiskGroup{config.DiskControlled.Disks}
+	diskGroup := disk.DiskGroup{}
+	for _, devicePath := range config.DiskControlled.Disks {
+		diskGroup.AddDisk(&disk.Disk{DevicePath: devicePath})
+	}
 	controller := controller.GridFanController{DevicePath: config.DevicePath}
 
 	constantSet := false
@@ -308,7 +167,7 @@ func monitorTemperature(config Config) {
 	// Default is asleep in case of service restart. This means that if the
 	// cooldown did not finish, then the cooldown will be shortened, but we
 	// want that to avoid fan spinup on service restart.
-	lastStatus := DiskStatusSleep
+	lastStatus := disk.DiskStatusSleep
 	deadlineOff := time.Now()
 	lastRPM := -1
 
@@ -332,9 +191,9 @@ func monitorTemperature(config Config) {
 		} else {
 			switch status {
 
-			case DiskStatusSleep:
+			case disk.DiskStatusSleep:
 				// Disks are turned off - turn off fans after a cooldown period
-				if lastStatus == DiskStatusSleep {
+				if lastStatus == disk.DiskStatusSleep {
 					timeSince := time.Since(deadlineOff).Seconds()
 					if timeSince >= 0 {
 						targetRPM = 0
@@ -354,15 +213,15 @@ func monitorTemperature(config Config) {
 						deadlineOff, targetRPM)
 				}
 
-			case DiskStatusStandby:
+			case disk.DiskStatusStandby:
 				// Disks are neither fully turned off, and neither active
 				// Can't read temperature in this state
 				targetRPM = config.DiskControlled.RPM.Standby
 				log.Printf("INFO Disk status is standby, setting RPM to: %d", targetRPM)
 
-			case DiskStatusActive:
+			case disk.DiskStatusActive:
 				// Disks are active - check temperature
-				if lastStatus != DiskStatusActive {
+				if lastStatus != disk.DiskStatusActive {
 					pid.Reset()
 				} else {
 					pid.Update(float64(temp))
