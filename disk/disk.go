@@ -48,6 +48,25 @@ func (e *ErrSleepingDisk) Error() string {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// GetStatusString for status enum
+func GetStatusString(status int) string {
+	switch status {
+	case DiskStatusSleep:
+		return "Sleeping"
+
+	case DiskStatusStandby:
+		return "Standby"
+
+	case DiskStatusActive:
+		return "Active"
+
+	default:
+		return "Unknown"
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // GetTemperature of a disk in degrees celcius.
 func (disk *Disk) GetTemperature() (int, error) {
 

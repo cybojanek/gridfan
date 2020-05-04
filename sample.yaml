@@ -1,30 +1,39 @@
 # Required
 serial_device_path: /dev/serial/by-id/usb-Microchip_Technology_Inc._MCP2200_USB_Serial_Port_Emulator_0002228615-if00
 
-# Optional
 constant_rpm:
   1: 0
   2: 100
   3: 100
-  # 4:
-  # 5:
-  # 6:
 
-disk_controlled:
-  fans: [4, 5, 6]
+curve_fans:
+  - 4
+  - 5
+  - 6
+
+disk_curve:
+  poll_interval: 60
+  cooldown_timeout: 120
   rpm:
-    sleeping: 50
+    sleeping: 0
+    cooldown: 50
     standby: 50
-  target_temp: 40
-  sleeping_timeout: 120
-  disks:
-    - /dev/disk/by-id/wwn-0x5000c500a1f35a61
-    - /dev/disk/by-id/wwn-0x5000c500a1f35cd6
-    - /dev/disk/by-id/wwn-0x5000c500a1f362d1
-    - /dev/disk/by-id/wwn-0x5000c500a1f36761
-    - /dev/disk/by-id/wwn-0x5000c500a1f36857
-    - /dev/disk/by-id/wwn-0x5000c500a1f3d72f
-    - /dev/disk/by-id/wwn-0x5000c500a1f3d7d0
-    - /dev/disk/by-id/wwn-0x5000c500a1f3d9fa
-    - /dev/disk/by-id/wwn-0x5000c500a1f3dbc9
-    - /dev/disk/by-id/wwn-0x5000c500a1f3dd7b
+  points:
+    - temp: 30
+      rpm: 50
+    - temp: 40
+      rpm: 80
+    - temp: 45
+      rpm: 100
+
+disks:
+  - /dev/disk/by-id/wwn-0x5000c500a1f35a61
+  - /dev/disk/by-id/wwn-0x5000c500a1f35cd6
+  - /dev/disk/by-id/wwn-0x5000c500a1f362d1
+  - /dev/disk/by-id/wwn-0x5000c500a1f36761
+  - /dev/disk/by-id/wwn-0x5000c500a1f36857
+  - /dev/disk/by-id/wwn-0x5000c500a1f3d72f
+  - /dev/disk/by-id/wwn-0x5000c500a1f3d7d0
+  - /dev/disk/by-id/wwn-0x5000c500a1f3d9fa
+  - /dev/disk/by-id/wwn-0x5000c500a1f3dbc9
+  - /dev/disk/by-id/wwn-0x5000c500a1f3dd7b

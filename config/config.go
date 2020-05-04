@@ -9,20 +9,28 @@ import (
 	"os"
 )
 
+// ConfigCurvePoint for a temperature/rpm curve
+type ConfigCurvePoint struct {
+	Temperature int `yaml:"temp"`
+	RPM         int `yaml:"rpm"`
+}
+
 // Config for GridFan
 type Config struct {
-	DevicePath     string      `yaml:"serial_device_path"`
-	ConstantRPM    map[int]int `yaml:"constant_rpm"`
-	DiskControlled struct {
-		Fans              []int    `yaml:"fans"`
-		TargetTemperature int      `yaml:"target_temp"`
-		SleepingTimeout   int      `yaml:"sleeping_timeout"`
-		Disks             []string `yaml:"disks"`
-		RPM               struct {
+	ConstantRPM map[int]int `yaml:"constant_rpm"`
+	CurveFans   []int       `yaml:"curve_fans"`
+	DevicePath  string      `yaml:"serial_device_path"`
+	Disks       []string    `yaml:"disks"`
+	DiskCurve   struct {
+		Points          []ConfigCurvePoint `yaml:"points"`
+		PollInterval    int                `yaml:"poll_interval"`
+		CooldownTimeout int                `yaml:"cooldown_timeout"`
+		RPM             struct {
 			Sleeping int `yaml:"sleeping"`
+			Cooldown int `yaml:"cooldown"`
 			Standby  int `yaml:"standby"`
 		} `yaml:"rpm"`
-	} `yaml:"disk_controlled"`
+	} `yaml:"disk_curve"`
 }
 
 // Read yaml config file
@@ -59,7 +67,7 @@ func ReadConfig(path string) (Config, error) {
 	}
 
 	// Check DiskControlled.Fans
-	for _, fan := range config.DiskControlled.Fans {
+	for _, fan := range config.CurveFans {
 		if !controller.IsValidFan(fan) {
 			return config, fmt.Errorf("ReadConfig: Invalid fan index: %d", fan)
 		}
@@ -68,35 +76,64 @@ func ReadConfig(path string) (Config, error) {
 		_, ok := config.ConstantRPM[fan]
 		if ok {
 			return config, fmt.Errorf(
-				"ReadConfig: Fan %d present in both constant_rpm and disk_controlled", fan)
+				"ReadConfig: Fan %d present in both constant_rpm and curve_rpm", fan)
 		}
 	}
 
-	// Check Sleeping and Standby
-	if !controller.IsValidRPM(config.DiskControlled.RPM.Sleeping) {
+	// Check Sleeping, Cooldown and Standby
+	if !controller.IsValidRPM(config.DiskCurve.RPM.Sleeping) {
 		return config, fmt.Errorf("ReadConfig: Invalid sleeping rpm: %d",
-			config.DiskControlled.RPM.Sleeping)
+			config.DiskCurve.RPM.Sleeping)
 	}
 
-	if !controller.IsValidRPM(config.DiskControlled.RPM.Standby) {
+	if !controller.IsValidRPM(config.DiskCurve.RPM.Cooldown) {
+		return config, fmt.Errorf("ReadConfig: Invalid cooldown rpm: %d",
+			config.DiskCurve.RPM.Cooldown)
+	}
+
+	if !controller.IsValidRPM(config.DiskCurve.RPM.Standby) {
 		return config, fmt.Errorf("ReadConfig: Invalid standby rpm: %d",
-			config.DiskControlled.RPM.Standby)
+			config.DiskCurve.RPM.Standby)
 	}
 
-	// Check SleepingTimeout
-	if config.DiskControlled.SleepingTimeout < 0 ||
-		config.DiskControlled.SleepingTimeout > 3600 {
+	// Check PollInterval
+	if config.DiskCurve.PollInterval < 0 ||
+		config.DiskCurve.PollInterval > 3600 {
 		return config, fmt.Errorf(
-			"ReadConfig: Invalid sleeping_timeout: %d not in [0, 3600]",
-			config.DiskControlled.SleepingTimeout)
+			"ReadConfig: Invalid cooldown_timeout: %d not in [0, 3600]",
+			config.DiskCurve.PollInterval)
 	}
 
-	// Check TargetTemperature
-	if config.DiskControlled.TargetTemperature < 0 ||
-		config.DiskControlled.TargetTemperature > 100 {
+	// Check CooldownTimeout
+	if config.DiskCurve.CooldownTimeout < 0 ||
+		config.DiskCurve.CooldownTimeout > 3600 {
 		return config, fmt.Errorf(
-			"ReadConfig: Invalid target_temp: %d not in [0, 100]",
-			config.DiskControlled.TargetTemperature)
+			"ReadConfig: Invalid cooldown_timeout: %d not in [0, 3600]",
+			config.DiskCurve.CooldownTimeout)
+	}
+
+	// Check Points
+	for i, point := range config.DiskCurve.Points {
+
+		if point.Temperature < 0 || point.Temperature > 100 {
+			return config, fmt.Errorf(
+				"ReadConfig: Invalid disk_curve temperature: %d not in [0, 100]",
+				point.Temperature)
+		}
+
+		if i > 0 {
+			previousTemperature := config.DiskCurve.Points[i-1].Temperature
+			if previousTemperature >= point.Temperature {
+				return config, fmt.Errorf(
+					"ReadConfig: Invalid disk_curve temperature: %d must be strictly increasing",
+					point.Temperature)
+			}
+		}
+
+		if !controller.IsValidRPM(point.RPM) {
+			return config, fmt.Errorf(
+				"ReadConfig: Invalid disk_curve rpm: %d", point.RPM)
+		}
 	}
 
 	return config, nil

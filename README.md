@@ -29,10 +29,32 @@ the serial device, so be careful if using this in any automated scripts.
 ```
 
 Daemon: gridfan in the foreground forever. Sets *constant_rpm* fans once on
-startup. Sets *disk_controlled* fans depending on temperature and status of
-disks (active, standby, sleeping), and required *hddtemp* and *hdparm* commands
+startup. Sets *curve_fans* fans depending on temperature and status of
+disks (active, standby, sleeping). Requires *hddtemp* and *hdparm* commands
 to be installed.
 
 ```bash
-./gridfan daemon
+./gridfan daemon sample.yaml
+```
+
+Disk Curve Pseudocode:
+
+```python
+while True:
+    temp, status = disks.poll()
+    if status == sleeping:
+        if time_since_sleep >= cooldown_timeout:
+            fans.set(rpm.sleeping)
+        else:
+            fans.set(rpm.cooldown)
+    elif status == standby:
+        fans.set(rpm.standby)
+    else:
+        rpm = 0
+        for point in points:
+            if temp >= point.temp:
+                rpm = point.temp
+        fans.set(rpm)
+
+    sleep(poll_interval)
 ```
