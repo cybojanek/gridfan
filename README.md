@@ -12,7 +12,7 @@ Usage
 Compile
 
 ```bash
-go build
+go build -v .
 ```
 
 Modify *sample.yaml*
@@ -37,24 +37,38 @@ to be installed.
 ./gridfan daemon sample.yaml
 ```
 
-Disk Curve Pseudocode:
+Disk Curve Pseudocode
+=====================
 
 ```python
 while True:
+    # Check all disks, will *NOT* wake them up if power management policy has
+    # put them to sleep.
     temp, status = disks.poll()
+
     if status == sleeping:
         if time_since_sleep >= cooldown_timeout:
+            # Disks are sleeping, and we have spun fans at cooldown rpm for
+            # cooldown timeout period, so now spin them at sleeping rpm.
             fans.set(rpm.sleeping)
         else:
+            # Disks have just fallen asleep. Spin at cooldown rpm for cooldown
+            # timeout period.
             fans.set(rpm.cooldown)
+
     elif status == standby:
+        # Disks are in standby, and we can't get the temperature anymore.
+        # Run fans at standby rpm.
         fans.set(rpm.standby)
     else:
-        rpm = 0
+        # Disks are awake. Find first marker that matches. Use 100 default in
+        # case of no match.
+        rpm = 100
         for point in points:
             if temp >= point.temp:
                 rpm = point.temp
         fans.set(rpm)
 
+    # Sleep for a little.
     sleep(poll_interval)
 ```

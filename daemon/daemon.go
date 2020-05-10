@@ -90,7 +90,6 @@ func Run(config config.Config) {
 
 			case disk.DiskStatusActive:
 				// Disks are active - check temperature curve
-				targetRPM = 0
 				for _, point := range config.DiskCurve.Points {
 					if temp >= point.Temperature {
 						targetRPM = point.RPM
