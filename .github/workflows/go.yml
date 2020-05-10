@@ -9,17 +9,14 @@ on:
 jobs:
 
   build:
-    name: Build
     runs-on: ubuntu-latest
     steps:
 
-      - name: Set up Go 1.x
-        uses: actions/setup-go@v2
+      - uses: actions/setup-go@v2
         with:
-          go-version: ^1.13
+          go-version: ^1.14
 
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
       - name: Get dependencies
         run: |
@@ -30,3 +27,12 @@ jobs:
 
       - name: Test
         run: go test -v .
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v2
+
+      - name: Run golangci-lint
+        uses: actions-contrib/golangci-lint@v1
