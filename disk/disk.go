@@ -135,7 +135,7 @@ func (disk *Disk) GetTemperature() (int, error) {
 
 // GetStatus of status of a disk.
 func (disk *Disk) GetStatus() (int, error) {
-	status := DiskStatusSleep
+	var status int
 
 	// Get command output
 	command := exec.Command("hdparm", "-C", disk.DevicePath)
