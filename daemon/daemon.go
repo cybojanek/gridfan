@@ -70,7 +70,7 @@ func Run(config config.Config) {
 							targetRPM)
 					} else {
 						targetRPM = config.DiskCurve.RPM.Cooldown
-						log.Printf("INFO Disk status is asleep, cooldown over in: %d, setting RPM to: %d",
+						log.Printf("INFO Disk status is asleep, cooldown over in: %v, setting RPM to: %d",
 							-timeSince, targetRPM)
 					}
 				} else {
@@ -78,7 +78,7 @@ func Run(config config.Config) {
 					deadlineOff := time.Until(time.Now().Add(time.Duration(
 						config.DiskCurve.CooldownTimeout) * time.Second))
 					targetRPM = config.DiskCurve.RPM.Sleeping
-					log.Printf("INFO Disks just fell asleep, turning off in: %s, setting RPM to: %d",
+					log.Printf("INFO Disks just fell asleep, turning off in: %v, setting RPM to: %d",
 						deadlineOff, targetRPM)
 				}
 
