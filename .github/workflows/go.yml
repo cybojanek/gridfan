@@ -3,6 +3,7 @@ name: Go
 on:
   push:
     branches: [ master ]
+    tags: [ v* ]
   pull_request:
     branches: [ master ]
 
@@ -27,6 +28,12 @@ jobs:
 
       - name: Test
         run: go test -v .
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: gridfan
+          path: gridfan
+        if: startswith(github.ref, 'refs/tags/v')
 
   lint:
     runs-on: ubuntu-latest
