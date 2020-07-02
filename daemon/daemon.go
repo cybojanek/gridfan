@@ -50,8 +50,14 @@ func Run(config config.Config) {
 		targetRPM := 100
 
 		// Get disk temperature and status
-		temp, tempErr := diskGroup.GetTemperature()
 		status, statusErr := diskGroup.GetStatus()
+		var tempErr error
+		temp := 25
+		if status == disk.DiskStatusActive {
+			temp, tempErr = diskGroup.GetTemperature()
+		} else {
+			log.Printf("INFO Disks not active - skipping temperature polling")
+		}
 		log.Printf("INFO Temp: %d Status: %d %s", temp, status,
 			disk.GetStatusString(status))
 
