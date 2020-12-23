@@ -40,12 +40,12 @@ type GridFanController struct {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Check if a fan number is valid
+// IsValidFan number.
 func (controller *GridFanController) IsValidFan(fan int) bool {
 	return fan >= GridMinFanIndex && fan <= GridMaxFanIndex
 }
 
-// Check if a fan RPM is valid
+// IsValidRPM for a fan.
 func (controller *GridFanController) IsValidRPM(rpm int) bool {
 	return rpm == 0 || (rpm >= GridMinFanRPM && rpm <= GridMaxFanRPM)
 }

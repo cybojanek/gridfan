@@ -25,6 +25,7 @@ import (
 	"strings"
 )
 
+// Disk reference.
 type Disk struct {
 	DevicePath string
 }
@@ -38,6 +39,7 @@ const (
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// ErrSleepingDisk error.
 type ErrSleepingDisk struct {
 	message string
 }

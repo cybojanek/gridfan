@@ -16,18 +16,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// DiskGroup of disks
-type DiskGroup struct {
+// Group of disks
+type Group struct {
 	Disks []*Disk
 }
 
-// Add a disk to the group.
-func (group *DiskGroup) AddDisk(disk *Disk) {
+// AddDisk to the group.
+func (group *Group) AddDisk(disk *Disk) {
 	group.Disks = append(group.Disks, disk)
 }
 
 // GetTemperature maximum of all disks
-func (group *DiskGroup) GetTemperature() (int, error) {
+func (group *Group) GetTemperature() (int, error) {
 	maxTemperature := 0
 
 	for _, disk := range group.Disks {
@@ -53,7 +53,7 @@ func (group *DiskGroup) GetTemperature() (int, error) {
 }
 
 // GetStatus of highest activity disk
-func (group *DiskGroup) GetStatus() (int, error) {
+func (group *Group) GetStatus() (int, error) {
 	maxStatus := DiskStatusSleep
 
 	for _, disk := range group.Disks {

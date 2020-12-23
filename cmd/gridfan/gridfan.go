@@ -18,9 +18,9 @@ limitations under the License.
 
 import (
 	"fmt"
-	"github.com/cybojanek/gridfan/config"
-	"github.com/cybojanek/gridfan/controller"
-	"github.com/cybojanek/gridfan/daemon"
+	"github.com/cybojanek/gridfan/internal/config"
+	"github.com/cybojanek/gridfan/internal/controller"
+	"github.com/cybojanek/gridfan/internal/daemon"
 	"log"
 	"os"
 	"strconv"
@@ -47,7 +47,7 @@ func mainWrapper() (ret int) {
 		return
 	}
 
-	config, err := config.ReadConfig(os.Args[1])
+	config, err := config.Read(os.Args[1])
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to read config: %v\n", err)

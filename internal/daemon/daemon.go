@@ -18,17 +18,17 @@ limitations under the License.
 */
 
 import (
-	"github.com/cybojanek/gridfan/config"
-	"github.com/cybojanek/gridfan/controller"
-	"github.com/cybojanek/gridfan/disk"
+	"github.com/cybojanek/gridfan/internal/config"
+	"github.com/cybojanek/gridfan/internal/controller"
+	"github.com/cybojanek/gridfan/internal/disk"
 	"log"
 	"time"
 )
 
-// Apply configuration and run indefinitely
+// Run indefinitely.
 func Run(config config.Config) {
 	// Create disk group
-	diskGroup := disk.DiskGroup{}
+	diskGroup := disk.Group{}
 	for _, devicePath := range config.Disks {
 		diskGroup.AddDisk(&disk.Disk{DevicePath: devicePath})
 	}

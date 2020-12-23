@@ -12,7 +12,7 @@ Usage
 Compile
 
 ```bash
-go build -v .
+go build -v cmd/gridfan
 ```
 
 Modify *sample.yaml*

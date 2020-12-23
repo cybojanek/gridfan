@@ -3,14 +3,14 @@ package config
 
 import (
 	"fmt"
-	"github.com/cybojanek/gridfan/controller"
+	"github.com/cybojanek/gridfan/internal/controller"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 )
 
-// ConfigCurvePoint for a temperature/rpm curve
-type ConfigCurvePoint struct {
+// CurvePoint for a temperature/rpm curve
+type CurvePoint struct {
 	Temperature int `yaml:"temp"`
 	RPM         int `yaml:"rpm"`
 }
@@ -22,9 +22,9 @@ type Config struct {
 	DevicePath  string      `yaml:"serial_device_path"`
 	Disks       []string    `yaml:"disks"`
 	DiskCurve   struct {
-		Points          []ConfigCurvePoint `yaml:"points"`
-		PollInterval    int                `yaml:"poll_interval"`
-		CooldownTimeout int                `yaml:"cooldown_timeout"`
+		Points          []CurvePoint `yaml:"points"`
+		PollInterval    int          `yaml:"poll_interval"`
+		CooldownTimeout int          `yaml:"cooldown_timeout"`
 		RPM             struct {
 			Sleeping int `yaml:"sleeping"`
 			Cooldown int `yaml:"cooldown"`
@@ -33,8 +33,8 @@ type Config struct {
 	} `yaml:"disk_curve"`
 }
 
-// Read yaml config file
-func ReadConfig(path string) (Config, error) {
+// Read yaml config file.
+func Read(path string) (Config, error) {
 	config := Config{}
 	controller := controller.GridFanController{}
 
@@ -52,47 +52,47 @@ func ReadConfig(path string) (Config, error) {
 
 	// Check DevicePath
 	if len(config.DevicePath) == 0 {
-		return config, fmt.Errorf("ReadConfig: Missing serial_device_path")
+		return config, fmt.Errorf("Read: Missing serial_device_path")
 	}
 
 	// Check ConstantRPM fans
 	for fan, rpm := range config.ConstantRPM {
 		if !controller.IsValidFan(fan) {
-			return config, fmt.Errorf("ReadConfig: Invalid fan index: %d", fan)
+			return config, fmt.Errorf("Read: Invalid fan index: %d", fan)
 		}
 		if !controller.IsValidRPM(rpm) {
 			return config, fmt.Errorf(
-				"ReadConfig: Invalid fan %d rpm: %d", fan, rpm)
+				"Read: Invalid fan %d rpm: %d", fan, rpm)
 		}
 	}
 
 	// Check DiskControlled.Fans
 	for _, fan := range config.CurveFans {
 		if !controller.IsValidFan(fan) {
-			return config, fmt.Errorf("ReadConfig: Invalid fan index: %d", fan)
+			return config, fmt.Errorf("Read: Invalid fan index: %d", fan)
 		}
 
 		// Can only be present in one
 		_, ok := config.ConstantRPM[fan]
 		if ok {
 			return config, fmt.Errorf(
-				"ReadConfig: Fan %d present in both constant_rpm and curve_rpm", fan)
+				"Read: Fan %d present in both constant_rpm and curve_rpm", fan)
 		}
 	}
 
 	// Check Sleeping, Cooldown and Standby
 	if !controller.IsValidRPM(config.DiskCurve.RPM.Sleeping) {
-		return config, fmt.Errorf("ReadConfig: Invalid sleeping rpm: %d",
+		return config, fmt.Errorf("Read: Invalid sleeping rpm: %d",
 			config.DiskCurve.RPM.Sleeping)
 	}
 
 	if !controller.IsValidRPM(config.DiskCurve.RPM.Cooldown) {
-		return config, fmt.Errorf("ReadConfig: Invalid cooldown rpm: %d",
+		return config, fmt.Errorf("Read: Invalid cooldown rpm: %d",
 			config.DiskCurve.RPM.Cooldown)
 	}
 
 	if !controller.IsValidRPM(config.DiskCurve.RPM.Standby) {
-		return config, fmt.Errorf("ReadConfig: Invalid standby rpm: %d",
+		return config, fmt.Errorf("Read: Invalid standby rpm: %d",
 			config.DiskCurve.RPM.Standby)
 	}
 
@@ -100,7 +100,7 @@ func ReadConfig(path string) (Config, error) {
 	if config.DiskCurve.PollInterval < 0 ||
 		config.DiskCurve.PollInterval > 3600 {
 		return config, fmt.Errorf(
-			"ReadConfig: Invalid cooldown_timeout: %d not in [0, 3600]",
+			"Read: Invalid cooldown_timeout: %d not in [0, 3600]",
 			config.DiskCurve.PollInterval)
 	}
 
@@ -108,7 +108,7 @@ func ReadConfig(path string) (Config, error) {
 	if config.DiskCurve.CooldownTimeout < 0 ||
 		config.DiskCurve.CooldownTimeout > 3600 {
 		return config, fmt.Errorf(
-			"ReadConfig: Invalid cooldown_timeout: %d not in [0, 3600]",
+			"Read: Invalid cooldown_timeout: %d not in [0, 3600]",
 			config.DiskCurve.CooldownTimeout)
 	}
 
@@ -117,7 +117,7 @@ func ReadConfig(path string) (Config, error) {
 
 		if point.Temperature < 0 || point.Temperature > 100 {
 			return config, fmt.Errorf(
-				"ReadConfig: Invalid disk_curve temperature: %d not in [0, 100]",
+				"Read: Invalid disk_curve temperature: %d not in [0, 100]",
 				point.Temperature)
 		}
 
@@ -125,14 +125,14 @@ func ReadConfig(path string) (Config, error) {
 			previousTemperature := config.DiskCurve.Points[i-1].Temperature
 			if previousTemperature >= point.Temperature {
 				return config, fmt.Errorf(
-					"ReadConfig: Invalid disk_curve temperature: %d must be strictly increasing",
+					"Read: Invalid disk_curve temperature: %d must be strictly increasing",
 					point.Temperature)
 			}
 		}
 
 		if !controller.IsValidRPM(point.RPM) {
 			return config, fmt.Errorf(
-				"ReadConfig: Invalid disk_curve rpm: %d", point.RPM)
+				"Read: Invalid disk_curve rpm: %d", point.RPM)
 		}
 	}
 
