@@ -49,20 +49,10 @@ func Run(config config.Config) {
 		// Default is 100 in case of errors
 		targetRPM := 100
 
-		// Get disk temperature and status
+		// Get disk status
 		status, statusErr := diskGroup.GetStatus()
-		var tempErr error
-		temp := 25
-		if status == disk.DiskStatusActive {
-			temp, tempErr = diskGroup.GetTemperature()
-		} else {
-			log.Printf("INFO Disks not active - skipping temperature polling")
-		}
-		log.Printf("INFO Temp: %d Status: %d %s", temp, status,
-			disk.GetStatusString(status))
-
-		if tempErr != nil || statusErr != nil {
-			log.Printf("ERROR failed to check disk status: %v %v", tempErr, statusErr)
+		if statusErr != nil {
+			log.Printf("ERROR failed to check disk status: %v", statusErr)
 		} else {
 			switch status {
 
@@ -96,9 +86,14 @@ func Run(config config.Config) {
 
 			case disk.DiskStatusActive:
 				// Disks are active - check temperature curve
-				for _, point := range config.DiskCurve.Points {
-					if temp >= point.Temperature {
-						targetRPM = point.RPM
+				if temp, tempErr := diskGroup.GetTemperature(); tempErr != nil {
+					log.Printf("ERROR: Failed to check temperature: %v", tempErr)
+				} else {
+					log.Printf("INFO Temp: %d", temp)
+					for _, point := range config.DiskCurve.Points {
+						if temp >= point.Temperature {
+							targetRPM = point.RPM
+						}
 					}
 				}
 
